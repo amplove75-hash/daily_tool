@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>내 일상 도구 — 캡처·압축·PDF·일정·일기</title>
+<!-- PDF 생성 & ZIP 압축 라이브러리 (CDN) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<style>
+:root{
+  --bg:#F5F1EA; --panel:#FFFFFF; --card:#FBF8F2; --border:#ECE5D8;
+  --text:#4A443C; --muted:#A99F90; --accent:#E8896B; --accent2:#DA765A;
+  --green:#7FA98C; --red:#E06A5E; --yellow:#E9B44C;
+  --shadow:0 4px 18px rgba(120,100,70,.08); --shadow-sm:0 2px 8px rgba(120,100,70,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",Pretendard,Roboto,sans-serif;background:linear-gradient(160deg,#F7F3EC 0%,#F1EBE0 100%);background-attachment:fixed;color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased}
+header{padding:22px 24px 8px}
+header h1{font-size:22px;letter-spacing:-.2px;font-weight:700}
+header p{color:var(--muted);font-size:13px;margin-top:4px}
+.tabs{display:flex;gap:8px;padding:14px 24px 16px;flex-wrap:wrap;position:sticky;top:0;z-index:50;background:rgba(245,241,234,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--border)}
+.tab{background:#fff;color:var(--muted);border:1px solid var(--border);padding:9px 16px;font-size:14px;cursor:pointer;border-radius:12px;font-weight:600;transition:.15s;box-shadow:var(--shadow-sm)}
+.tab:hover{color:var(--accent2);border-color:var(--accent);transform:translateY(-1px)}
+.tab.active{color:#fff;background:var(--accent);border-color:var(--accent);box-shadow:0 4px 12px rgba(232,137,107,.4)}
+main{padding:22px 24px;max-width:1000px;margin:0 auto}
+.panel{display:none}
+.panel.active{display:block;animation:fade .2s}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0}
+.hint{color:var(--muted);font-size:13px}
+.btn{background:#fff;color:var(--text);border:1px solid var(--border);padding:9px 16px;border-radius:10px;font-size:14px;cursor:pointer;transition:.15s;box-shadow:var(--shadow-sm)}
+.btn:hover{border-color:var(--accent);color:var(--accent2);transform:translateY(-1px)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 3px 10px rgba(232,137,107,.3)}
+.btn.primary:hover{background:var(--accent2);color:#fff}
+.btn.ghost{background:transparent;box-shadow:none}
+.btn.small{padding:5px 11px;font-size:12px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;margin:16px 0;box-shadow:var(--shadow)}
+.card h3{font-size:15px;margin-bottom:10px;font-weight:700}
+label.field{display:flex;align-items:center;gap:8px;margin:10px 0;font-size:14px;flex-wrap:wrap}
+input[type=number],input[type=text],input[type=time],input[type=password],select,textarea{background:#fff;color:var(--text);border:1px solid var(--border);border-radius:10px;padding:9px 12px;font-family:inherit;font-size:14px;transition:.15s}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(232,137,107,.15)}
+textarea{width:100%;min-height:120px;resize:vertical;line-height:1.6}
+::placeholder{color:#c4bcae}
+input[type=range]{accent-color:var(--accent)}
+.preview img{max-width:100%;max-height:340px;border:1px solid var(--border);border-radius:8px;background:#000;margin-top:10px}
+.file-list{list-style:none;margin:12px 0;display:flex;flex-direction:column;gap:6px}
+.file-list li{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;font-size:13px;gap:8px}
+.file-list .meta{color:var(--muted);font-size:12px;display:flex;gap:6px;align-items:center}
+.file-list button{background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:15px}
+.file-list button:hover{color:var(--accent)}
+.result{margin-top:12px;font-size:13px}
+.result .ok{color:var(--green)}.result .err{color:var(--red)}
+.result table{width:100%;border-collapse:collapse;margin-top:8px}
+.result th,.result td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--border);font-size:12px}
+.hidden{display:none!important}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#4A443C;color:#fff;border:none;padding:12px 22px;border-radius:999px;font-size:14px;z-index:100;box-shadow:0 8px 30px rgba(74,68,60,.3)}
+hr{border:none;border-top:1px solid var(--border)}
+code{background:#F0EADD;padding:1px 6px;border-radius:5px;font-size:12px}
+/* ===== 메모 보드 ===== */
+.emoji-pick{display:flex;flex-wrap:wrap;gap:5px;margin:4px 0}
+.emoji-pick button{font-size:20px;background:#fff;border:1px solid var(--border);border-radius:10px;width:40px;height:40px;cursor:pointer;transition:.12s;opacity:.55}
+.emoji-pick button:hover{transform:scale(1.12);opacity:1}
+.emoji-pick button.sel{opacity:1;background:#FFF1EC;border-color:var(--accent);transform:scale(1.08)}
+.memo-board{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:14px;margin-top:14px}
+.memo-note{border-radius:16px;padding:15px 16px 34px;position:relative;box-shadow:var(--shadow);min-height:105px;transition:.15s;overflow:hidden}
+.memo-note:hover{transform:translateY(-3px) rotate(0deg)!important}
+.memo-note:nth-child(4n+1){background:#FFF970;background:#FEF3E2;transform:rotate(-1deg)}
+.memo-note:nth-child(4n+2){background:#E8F3EA;transform:rotate(1deg)}
+.memo-note:nth-child(4n+3){background:#E9F0F8;transform:rotate(-1.2deg)}
+.memo-note:nth-child(4n){background:#F6ECF5;transform:rotate(.8deg)}
+.memo-note .emoji{font-size:26px;line-height:1}
+.memo-note .text{margin-top:8px;font-size:14px;line-height:1.55;color:#4A443C;white-space:pre-wrap;word-break:break-word}
+.memo-note .when{position:absolute;bottom:11px;left:16px;font-size:11px;color:#a49c8e}
+.memo-note .del{position:absolute;bottom:7px;right:10px;background:none;border:none;color:var(--red);opacity:.45;cursor:pointer;font-size:14px}
+.memo-note .del:hover{opacity:1}
+.memo-empty{text-align:center;color:var(--muted);padding:30px 10px;font-size:14px}
+.todo-done .tt{text-decoration:line-through;color:var(--muted)}
+.file-list input[type=checkbox]{accent-color:var(--accent);cursor:pointer}
+.memo-daygroup{margin-top:16px}
+.memo-date{font-weight:700;color:var(--accent2);font-size:14px;margin-bottom:2px;padding-left:2px}
+.memo-note .kind{position:absolute;top:11px;right:12px;font-size:12px;color:#a49c8e}
+/* 캘린더 */
+.cal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.cal-head h2{font-size:18px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.cal-dow{text-align:center;color:var(--muted);font-size:12px;padding:4px 0}
+.cal-cell{background:#fff;border:1px solid var(--border);border-radius:12px;min-height:80px;padding:7px;cursor:pointer;transition:.12s;position:relative;overflow:hidden;box-shadow:var(--shadow-sm)}
+.cal-cell:hover{border-color:var(--accent);transform:translateY(-2px)}
+.cal-cell.empty{background:transparent;border-color:transparent;cursor:default;box-shadow:none}
+.cal-cell.today{border-color:var(--accent);background:#FFF6F2}
+.cal-cell .num{font-size:12px;color:var(--muted)}
+.cal-cell.sun .num{color:var(--red)}
+.cal-cell.sat .num{color:#7ab8ff}
+.cal-cell .dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin:1px}
+.cal-cell .ev{font-size:10px;background:var(--accent);color:#fff;border-radius:4px;padding:1px 4px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-cell .diary-mark{position:absolute;top:5px;right:6px;font-size:11px}
+.modal-bg{position:fixed;inset:0;background:rgba(74,68,60,.4);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:200}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:24px;width:min(480px,92vw);max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(74,68,60,.25)}
+.modal h3{margin-bottom:12px}
+.ev-item{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;margin:6px 0;font-size:13px}
+.mood-row{display:flex;gap:6px;margin:8px 0}
+.mood{font-size:22px;cursor:pointer;opacity:.4;transition:.12s;background:none;border:none}
+.mood.sel{opacity:1;transform:scale(1.2)}
+</style>
+</head>
+<body>
+<header>
+  <h1>🧰 내 일상 도구</h1>
+  <p>화면 캡처 · 압축 · PDF 변환 · 일정표 · 일기 — 모두 브라우저에서, 데이터는 이 기기에만 저장됩니다.</p>
+</header>
+
+<nav class="tabs">
+  <button class="tab active" data-tab="capture">📸 캡처</button>
+  <button class="tab" data-tab="compress">🗜️ 압축</button>
+  <button class="tab" data-tab="pdf">📄 PDF</button>
+  <button class="tab" data-tab="convert">🔄 문서변환</button>
+  <button class="tab" data-tab="calendar">📅 일정표</button>
+  <button class="tab" data-tab="todo">✅ 할일</button>
+  <button class="tab" data-tab="diary">📔 일기·메모</button>
+  <button class="tab" data-tab="settings">⚙️ 설정</button>
+</nav>
+
+<main>
+  <!-- ===== 캡처 ===== -->
+  <section id="tab-capture" class="panel active">
+    <div class="card">
+      <h3>화면 캡처</h3>
+      <p class="hint" style="line-height:1.7">버튼을 누르면 공유 창이 뜹니다. 여기서 <b>특정 창</b>을 고르면 <b>창 캡처</b>, 전체 화면을 고르면 전체 캡처예요.
+        캡처한 뒤 <b>"영역 잘라내기"</b>로 원하는 부분만 드래그해 <b>영역 캡처</b>처럼 쓸 수 있습니다.</p>
+      <div class="row">
+        <button id="capBtn" class="btn primary">화면 캡처하기</button>
+        <button id="capUpload" class="btn">이미지 파일 열기</button>
+        <span class="hint">※ 캡처 후 잘라내기·저장, PDF/압축으로 전달 가능</span>
+      </div>
+      <div id="capHelp" class="card hidden" style="border-color:var(--yellow);margin-top:8px">
+        <h3 style="color:var(--yellow)">화면 공유가 거부되었어요 — 확인하세요</h3>
+        <p class="hint" style="line-height:1.7">
+          1) <b>Mac 사용자</b>: 시스템 설정 → 개인정보 보호 및 보안 → <b>화면 기록</b>에서 크롬/엣지를 켜고 브라우저를 완전히 껐다 켜세요.<br>
+          2) 공유 선택 창에서 <b>취소</b>를 누르지 않았는지 확인하세요.<br>
+          3) 파일을 그냥 더블클릭(file://)하면 막힐 수 있어요. <b>Chrome 또는 Edge</b>로 열어보세요.<br>
+          4) 그래도 안 되면 화면을 직접 캡처(Windows: <b>Win+Shift+S</b>, Mac: <b>⌘+Shift+4</b>)해 저장한 뒤, 위 <b>"이미지 파일 열기"</b> 버튼으로 불러와 압축·PDF로 이어서 쓰세요.
+        </p>
+      </div>
+      <div id="capPreview" class="preview hidden">
+        <img id="capImg" alt="캡처 미리보기" />
+        <div class="row">
+          <button id="capCrop" class="btn primary">✂️ 영역 잘라내기</button>
+          <button id="capSave" class="btn">PNG 저장</button>
+          <button id="capToPdf" class="btn">PDF 목록에 추가</button>
+          <button id="capToCompress" class="btn">압축 목록에 추가</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 압축 ===== -->
+  <section id="tab-compress" class="panel">
+    <div class="card">
+      <h3>이미지 용량 줄이기</h3>
+      <div class="row">
+        <button id="cmpPick" class="btn primary">이미지 선택</button>
+        <span class="hint">JPEG/WebP로 다시 인코딩해 용량을 줄입니다.</span>
+      </div>
+      <label class="field">품질 <input type="range" id="cmpQuality" min="10" max="100" value="70"><span id="cmpQualityVal">70</span>%</label>
+      <label class="field">최대 가로폭(px, 0=원본) <input type="number" id="cmpMaxW" value="0" min="0" style="width:110px"></label>
+      <label class="field">형식
+        <select id="cmpFormat"><option value="image/jpeg">JPEG</option><option value="image/webp">WebP</option></select>
+      </label>
+      <ul id="cmpList" class="file-list"></ul>
+      <div class="row">
+        <button id="cmpRun" class="btn primary">압축해서 저장</button>
+      </div>
+      <div id="cmpResult" class="result"></div>
+    </div>
+    <div class="card">
+      <h3>여러 파일 → ZIP 압축</h3>
+      <div class="row">
+        <button id="zipPick" class="btn primary">파일 선택</button>
+        <button id="zipRun" class="btn">ZIP으로 묶기</button>
+      </div>
+      <ul id="zipList" class="file-list"></ul>
+      <div id="zipResult" class="result"></div>
+    </div>
+    <div class="card">
+      <h3>압축 풀기 (ZIP 열기)</h3>
+      <div class="row">
+        <button id="unzipPick" class="btn primary">ZIP 파일 선택</button>
+        <button id="unzipAll" class="btn hidden">전체 내려받기</button>
+        <span class="hint">ZIP 안의 파일을 확인하고 하나씩 또는 한 번에 내려받아요.</span>
+      </div>
+      <ul id="unzipList" class="file-list"></ul>
+      <div id="unzipResult" class="result"></div>
+    </div>
+  </section>
+
+  <!-- ===== PDF ===== -->
+  <section id="tab-pdf" class="panel">
+    <div class="card">
+      <h3>이미지 → PDF 변환</h3>
+      <div class="row">
+        <button id="pdfPick" class="btn primary">이미지 선택</button>
+        <span class="hint">이미지 순서대로 각각 한 페이지가 됩니다.</span>
+      </div>
+      <label class="field">페이지 크기
+        <select id="pdfSize"><option value="fit">이미지 크기에 맞춤</option><option value="a4">A4</option><option value="letter">Letter</option></select>
+      </label>
+      <ul id="pdfList" class="file-list"></ul>
+      <div class="row">
+        <button id="pdfRun" class="btn primary">PDF 만들기</button>
+        <button id="pdfClear" class="btn ghost">목록 비우기</button>
+      </div>
+      <div id="pdfResult" class="result"></div>
+    </div>
+
+    <div class="card">
+      <h3>PDF 병합 (여러 PDF → 하나로)</h3>
+      <div class="row">
+        <button id="mergePick" class="btn primary">PDF 파일 선택</button>
+        <span class="hint">목록 순서대로 이어 붙입니다. ▲▼로 순서를 바꾸세요.</span>
+      </div>
+      <ul id="mergeList" class="file-list"></ul>
+      <div class="row">
+        <button id="mergeRun" class="btn primary">병합해서 저장</button>
+        <button id="mergeClear" class="btn ghost">목록 비우기</button>
+      </div>
+      <div id="mergeResult" class="result"></div>
+    </div>
+  </section>
+
+  <!-- ===== 문서변환 ===== -->
+  <section id="tab-convert" class="panel">
+    <div class="card">
+      <h3>문서 변환 (HWP · DOC · PPT · PDF 양방향)</h3>
+      <p class="hint" style="line-height:1.7">
+        CloudConvert 온라인 변환을 사용합니다. 처음 한 번만 <b>무료 API 키</b>가 필요해요 →
+        <b>⚙️ 설정 탭</b>에서 등록하세요. (등록 방법도 설정 탭에 안내되어 있어요)
+        <span id="ccKeyStatus"></span>
+      </p>
+      <hr style="margin:14px 0">
+      <div class="row">
+        <button id="ccPick" class="btn primary">변환할 파일 선택</button>
+        <span id="ccFileName" class="hint">선택된 파일 없음</span>
+      </div>
+      <label class="field">출력 형식으로 변환
+        <select id="ccOut">
+          <option value="pdf">PDF</option>
+          <option value="docx">DOCX (Word)</option>
+          <option value="pptx">PPTX (PowerPoint)</option>
+          <option value="hwp">HWP (한글)</option>
+          <option value="xlsx">XLSX (Excel)</option>
+          <option value="jpg">JPG (이미지)</option>
+          <option value="png">PNG (이미지)</option>
+          <option value="txt">TXT (텍스트)</option>
+        </select>
+      </label>
+      <p class="hint">예: HWP→PDF, PDF→DOCX, PPTX→PDF 등. 지원되지 않는 조합은 변환 시 오류로 안내됩니다.</p>
+      <div class="row">
+        <button id="ccRun" class="btn primary">변환하기</button>
+      </div>
+      <div id="ccResult" class="result"></div>
+    </div>
+  </section>
+
+  <!-- ===== 일정표 ===== -->
+  <section id="tab-calendar" class="panel">
+    <div class="card">
+      <div class="cal-head">
+        <button id="calPrev" class="btn small">◀</button>
+        <h2 id="calTitle"></h2>
+        <button id="calNext" class="btn small">▶</button>
+      </div>
+      <div class="cal-grid" id="calDow"></div>
+      <div class="cal-grid" id="calGrid" style="margin-top:6px"></div>
+      <p class="hint" style="margin-top:12px">날짜를 클릭하면 일정을 추가하거나 일기를 쓸 수 있어요. 파란 점=일정, 📔=일기</p>
+    </div>
+
+    <div class="card">
+      <h3>🖼️ 이미지로 일정 추가</h3>
+      <p class="hint">시간표·안내문 등의 사진을 올리면 글자를 인식(OCR)해 날짜·시간이 있는 줄을 일정 후보로 만들어 드려요. (한글+영문)</p>
+      <div class="row">
+        <button id="ocrPick" class="btn primary">이미지 선택</button>
+        <span id="ocrStatus" class="hint"></span>
+      </div>
+      <div id="ocrCandidates"></div>
+    </div>
+
+    <div class="card">
+      <h3>🔗 가져오기 / 내보내기 · 구글 캘린더</h3>
+      <div class="row">
+        <button id="csvImport" class="btn">CSV 가져오기</button>
+        <button id="csvExport" class="btn">CSV 내보내기</button>
+        <button id="icsExport" class="btn primary">구글 캘린더용 ICS 내보내기</button>
+      </div>
+      <p class="hint" style="line-height:1.7">
+        · <b>CSV 형식</b>: <code>날짜,시간,제목</code> (예: <code>2026-03-15,14:00,병원 예약</code>). 엑셀에서 편집 가능.<br>
+        · <b>구글 캘린더에 넣기</b>: ICS 파일을 내보낸 뒤 구글 캘린더 → 설정 → 가져오기에서 업로드하면 모든 일정이 등록됩니다.
+        개별 일정은 날짜를 클릭해 "구글 캘린더에 추가" 링크로도 바로 넣을 수 있어요.
+      </p>
+      <div id="ioResult" class="result"></div>
+    </div>
+  </section>
+
+  <!-- ===== 할일 ===== -->
+  <section id="tab-todo" class="panel">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <h3 style="margin:0">✅ 오늘의 할 일</h3>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button id="notifyEnable" class="btn small">🔔 알림 켜기</button>
+          <span id="notifyStatus" class="hint"></span>
+        </div>
+      </div>
+      <label class="field" style="margin-top:12px">날짜 <input type="date" id="todoDate" style="width:150px"></label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+        <input type="text" id="todoText" placeholder="할 일을 입력하세요…" style="flex:1;min-width:170px" maxlength="120">
+        <input type="time" id="todoTime" style="width:120px" title="알람 시간(선택)">
+        <button id="todoAdd" class="btn primary">추가</button>
+      </div>
+      <p class="hint">시간을 넣으면 그 시각에 알람이 옵니다. ※ 알림은 이 앱(브라우저 탭)이 열려 있을 때 동작해요.</p>
+      <div id="todoProgress" class="hint" style="margin:6px 0"></div>
+      <ul id="todoList" class="file-list"></ul>
+    </div>
+  </section>
+
+  <!-- ===== 일기·메모 ===== -->
+  <section id="tab-diary" class="panel">
+    <div class="card">
+      <h3>✏️ 오늘의 메모</h3>
+      <p class="hint">기분 이모티콘을 고르고 한 줄만 남겨보세요. 남긴 메모는 아래에 쌓입니다.</p>
+      <div class="emoji-pick" id="memoEmoji"></div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <input type="date" id="memoDate" style="width:150px" title="메모 날짜">
+        <input type="text" id="memoText" placeholder="한 줄 메모…  예) 오늘 아이 소풍 잘 다녀옴 🌿" style="flex:1;min-width:180px" maxlength="140">
+        <button id="memoAdd" class="btn primary">남기기</button>
+      </div>
+    </div>
+    <div class="card">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:2px">
+        <input type="text" id="diarySearch" placeholder="🔍 메모 검색..." style="flex:1;min-width:160px">
+      </div>
+      <div id="memoBoard"></div>
+    </div>
+  </section>
+
+  <!-- ===== 설정 ===== -->
+  <section id="tab-settings" class="panel">
+    <div class="card">
+      <h3>📄 문서 변환 API (CloudConvert)</h3>
+      <p class="hint" style="line-height:1.8">
+        HWP·DOC·PPT ↔ PDF 온라인 변환에 사용합니다. 무료로 하루 약 10건 변환할 수 있어요.<br>
+        <b>발급 방법</b><br>
+        ① <a href="https://cloudconvert.com/register" target="_blank" style="color:var(--accent2)">cloudconvert.com 무료 가입</a> 후 로그인<br>
+        ② 우측 상단 프로필 → <b>Dashboard</b> 접속<br>
+        ③ 왼쪽 메뉴 <b>API</b> → <b>API Keys</b> → <b>Create New API Key</b> 클릭<br>
+        ④ 권한(Scopes)에서 <b>task.read</b>, <b>task.write</b>를 체크하고 생성<br>
+        ⑤ 만들어진 키를 복사해 아래에 붙여넣고 저장
+      </p>
+      <label class="field">CloudConvert API 키
+        <input type="password" id="ccKey" placeholder="복사한 키를 붙여넣기" style="flex:1;min-width:200px">
+        <button id="ccKeySave" class="btn small primary">저장</button>
+        <span id="ccKeySaved" class="hint"></span></label>
+      <p class="hint">🔒 키는 이 브라우저에만 저장되며 서버로 전송되지 않습니다. 공용 PC에서는 저장하지 마세요.</p>
+    </div>
+
+    <div class="card">
+      <h3>🖥️ LibreOffice 설치 (API 없이 변환)</h3>
+      <p class="hint" style="line-height:1.8">
+        인터넷·API 키 없이 내 PC에서 변환하고 싶다면 무료 프로그램 <b>LibreOffice</b>를 설치하세요.
+        함께 드린 <b>문서변환기</b>(윈도우 .bat / 맥 .command) 파일이 이 프로그램을 사용합니다.<br>
+        <b>설치 방법</b><br>
+        ① <a href="https://ko.libreoffice.org/download/download-libreoffice/" target="_blank" style="color:var(--accent2)">ko.libreoffice.org 다운로드 페이지</a> 접속<br>
+        ② 내 운영체제(Windows/Mac)용 설치 파일을 내려받아 실행<br>
+        ③ 안내대로 설치 완료<br>
+        ④ 변환할 파일을 <b>"문서변환기_윈도우.bat"</b>(맥은 .command) 위로 끌어다 놓고 형식 선택<br>
+        ⑤ 원본 폴더의 <b>converted</b> 폴더에 결과가 저장됩니다<br>
+        ※ 최신 HWP 변환은 LibreOffice 확장 <b>H2Orestart</b>를 추가 설치하면 더 정확합니다.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3>🖼️ 이미지 분석 (일정 자동 인식) 설정</h3>
+      <p class="hint" style="line-height:1.8">
+        일정표의 "이미지로 일정 추가"에서 글자를 인식하는 방식을 고릅니다.
+      </p>
+      <label class="field">인식 방식
+        <select id="ocrMode">
+          <option value="free">무료 브라우저 인식 (키 불필요 · 느림 · 정확도 보통)</option>
+          <option value="api">API 사용 (한글 정확도 높음 · 무료 키 필요)</option>
+        </select>
+      </label>
+      <div id="ocrKeyBox">
+        <p class="hint" style="line-height:1.8;margin-top:8px">
+          <b>OCR API 키 발급 방법 (OCR.space · 무료 월 25,000건)</b><br>
+          ① <a href="https://ocr.space/ocrapi/freekey" target="_blank" style="color:var(--accent2)">ocr.space/ocrapi/freekey</a> 접속<br>
+          ② 이메일 입력 후 <b>Subscribe to Free plan</b> 클릭<br>
+          ③ 메일함으로 온 <b>API 키</b>를 복사해 아래에 붙여넣고 저장
+        </p>
+        <label class="field">이미지 분석 API 키
+          <input type="password" id="ocrKey" placeholder="OCR.space 키를 붙여넣기" style="flex:1;min-width:200px">
+          <button id="ocrKeySave" class="btn small primary">저장</button>
+          <span id="ocrKeySaved" class="hint"></span></label>
+      </div>
+      <p class="hint">🔒 모든 키는 이 브라우저에만 저장됩니다.</p>
+    </div>
+  </section>
+</main>
+
+<div id="toast" class="toast hidden"></div>
+<div id="modalRoot"></div>
+
+<script>
+// 라이브러리는 사용할 때 안전하게 참조 (CDN 미로드 시에도 나머지 기능은 동작)
+function getJsPDF(){ return (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : null; }
+function hasJSZip(){ return typeof JSZip !== 'undefined'; }
+const $ = (s)=>document.querySelector(s);
+const store = {
+  get(k,def){ try{return JSON.parse(localStorage.getItem(k))??def}catch(e){return def} },
+  set(k,v){ localStorage.setItem(k, JSON.stringify(v)); }
+};
+function toast(m,ms=2600){const e=$('#toast');e.textContent=m;e.classList.remove('hidden');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.add('hidden'),ms);}
+function fmtSize(b){if(b<1024)return b+' B';if(b<1048576)return (b/1024).toFixed(1)+' KB';return (b/1048576).toFixed(2)+' MB';}
+function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500);}
+function dataURLtoBlob(d){const [h,b]=d.split(',');const mime=h.match(/:(.*?);/)[1];const bin=atob(b);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new Blob([u],{type:mime});}
+
+// 탭
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');$('#tab-'+t.dataset.tab).classList.add('active');
+  if(t.dataset.tab==='diary') renderDiaryList();
+  if(t.dataset.tab==='todo') renderTodos();
+}));
+
+/* ================= 캡처 ================= */
+let capDataUrl=null;
+$('#capBtn').addEventListener('click',async()=>{
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getDisplayMedia){
+    toast('이 브라우저/환경에서는 화면 캡처가 지원되지 않습니다. Chrome·Edge에서 열어주세요.',4000);
+    return;
+  }
+  try{
+    const stream=await navigator.mediaDevices.getDisplayMedia({video:true,audio:false});
+    const track=stream.getVideoTracks()[0];
+    const video=document.createElement('video');
+    video.srcObject=stream;await video.play();
+    await new Promise(r=>setTimeout(r,220));
+    const c=document.createElement('canvas');
+    c.width=video.videoWidth;c.height=video.videoHeight;
+    c.getContext('2d').drawImage(video,0,0);
+    track.stop();
+    capDataUrl=c.toDataURL('image/png');
+    $('#capImg').src=capDataUrl;$('#capPreview').classList.remove('hidden');
+    toast('캡처 완료');
+  }catch(e){
+    if(e.name==='NotAllowedError'){
+      $('#capHelp').classList.remove('hidden');
+      toast('화면 공유가 거부되었습니다. 아래 안내를 확인하세요.',4000);
+    }else{
+      toast('캡처 실패: '+(e.message||e.name),4000);
+    }
+  }
+});
+$('#capUpload').addEventListener('click',()=>{
+  const inp=document.createElement('input');inp.type='file';inp.accept='image/*';
+  inp.onchange=async()=>{if(!inp.files[0])return;capDataUrl=await readFile(inp.files[0]);$('#capImg').src=capDataUrl;$('#capPreview').classList.remove('hidden');$('#capHelp').classList.add('hidden');toast('이미지 불러옴');};
+  inp.click();
+});
+$('#capSave').addEventListener('click',()=>{if(capDataUrl)download(dataURLtoBlob(capDataUrl),`capture-${Date.now()}.png`);});
+$('#capToPdf').addEventListener('click',()=>{if(!capDataUrl)return;pdfImages.push({name:`capture-${Date.now()}.png`,dataUrl:capDataUrl});renderPdfList();toast('PDF 목록에 추가됨');});
+$('#capToCompress').addEventListener('click',()=>{if(!capDataUrl)return;cmpImages.push({name:`capture-${Date.now()}.png`,dataUrl:capDataUrl,size:dataURLtoBlob(capDataUrl).size});renderCmpList();toast('압축 목록에 추가됨');});
+// 영역 잘라내기(크롭)
+$('#capCrop').addEventListener('click',()=>{ if(capDataUrl) openCrop(capDataUrl); });
+function openCrop(dataUrl){
+  const img=new Image();
+  img.onload=()=>{
+    const maxW=Math.min(img.width,760), scale=maxW/img.width, dw=Math.round(img.width*scale), dh=Math.round(img.height*scale);
+    const root=$('#modalRoot');
+    root.innerHTML=`<div class="modal-bg"><div class="modal" style="width:auto;max-width:94vw">
+      <h3>영역 지정 캡처</h3>
+      <p class="hint" style="margin-bottom:10px">이미지 위에서 마우스를 드래그해 저장할 영역을 선택하세요.</p>
+      <div id="cropWrap" style="position:relative;display:inline-block;cursor:crosshair;user-select:none;touch-action:none">
+        <img id="cropImg" src="${dataUrl}" style="width:${dw}px;height:${dh}px;display:block;border-radius:8px;pointer-events:none">
+        <div id="cropSel" style="position:absolute;border:2px solid #E8896B;background:rgba(232,137,107,.22);display:none;pointer-events:none"></div>
+      </div>
+      <div class="row"><button id="cropSave" class="btn primary">이 영역 저장</button><button id="cropFull" class="btn">전체 사용</button><button id="cropCancel" class="btn ghost">취소</button></div>
+    </div></div>`;
+    const wrap=$('#cropWrap'), sel=$('#cropSel'); let sx=0,sy=0,drawing=false,box=null;
+    function pos(e){const r=wrap.getBoundingClientRect();const px=(e.touches?e.touches[0].clientX:e.clientX)-r.left;const py=(e.touches?e.touches[0].clientY:e.clientY)-r.top;return {x:Math.max(0,Math.min(dw,px)),y:Math.max(0,Math.min(dh,py))};}
+    function down(e){drawing=true;const p=pos(e);sx=p.x;sy=p.y;sel.style.display='block';sel.style.left=sx+'px';sel.style.top=sy+'px';sel.style.width='0px';sel.style.height='0px';box=null;e.preventDefault();}
+    function move(e){if(!drawing)return;const p=pos(e);const x=Math.min(sx,p.x),y=Math.min(sy,p.y),w=Math.abs(p.x-sx),h=Math.abs(p.y-sy);sel.style.left=x+'px';sel.style.top=y+'px';sel.style.width=w+'px';sel.style.height=h+'px';box={x,y,w,h};e.preventDefault();}
+    function up(){drawing=false;}
+    wrap.addEventListener('mousedown',down);wrap.addEventListener('mousemove',move);window.addEventListener('mouseup',up);
+    wrap.addEventListener('touchstart',down);wrap.addEventListener('touchmove',move);window.addEventListener('touchend',up);
+    $('#cropCancel').onclick=()=>root.innerHTML='';
+    $('#cropFull').onclick=()=>{ root.innerHTML=''; toast('전체 이미지를 사용합니다.'); };
+    $('#cropSave').onclick=()=>{
+      if(!box||box.w<5||box.h<5)return toast('영역을 드래그해서 선택하세요.');
+      const c=document.createElement('canvas'); c.width=Math.round(box.w/scale); c.height=Math.round(box.h/scale);
+      c.getContext('2d').drawImage(img, box.x/scale, box.y/scale, box.w/scale, box.h/scale, 0,0,c.width,c.height);
+      capDataUrl=c.toDataURL('image/png'); $('#capImg').src=capDataUrl; root.innerHTML=''; toast('영역 잘라내기 완료 ✂️');
+    };
+  };
+  img.src=dataUrl;
+}
+
+/* ================= 압축 ================= */
+let cmpImages=[], zipItems=[];
+function readFile(file){return new Promise(res=>{const r=new FileReader();r.onload=()=>res(r.result);r.readAsDataURL(file);});}
+$('#cmpQuality').addEventListener('input',e=>$('#cmpQualityVal').textContent=e.target.value);
+$('#cmpPick').addEventListener('click',()=>{
+  const inp=document.createElement('input');inp.type='file';inp.accept='image/*';inp.multiple=true;
+  inp.onchange=async()=>{for(const f of inp.files){const d=await readFile(f);cmpImages.push({name:f.name,dataUrl:d,size:f.size});}renderCmpList();};
+  inp.click();
+});
+function renderCmpList(){const ul=$('#cmpList');ul.innerHTML='';cmpImages.forEach((f,i)=>{const li=document.createElement('li');li.innerHTML=`<span>🖼️ ${f.name}</span><span class="meta">${fmtSize(f.size)} <button data-i="${i}">✕</button></span>`;ul.appendChild(li);});ul.querySelectorAll('button').forEach(b=>b.onclick=()=>{cmpImages.splice(+b.dataset.i,1);renderCmpList();});}
+function compressOne(dataUrl,quality,maxW,mime){return new Promise(res=>{const img=new Image();img.onload=()=>{let w=img.width,h=img.height;if(maxW&&w>maxW){h=Math.round(h*maxW/w);w=maxW;}const c=document.createElement('canvas');c.width=w;c.height=h;const ctx=c.getContext('2d');if(mime==='image/jpeg'){ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);}ctx.drawImage(img,0,0,w,h);res(c.toDataURL(mime,quality/100));};img.src=dataUrl;});}
+$('#cmpRun').addEventListener('click',async()=>{
+  if(!cmpImages.length)return toast('이미지를 선택하세요.');
+  if(cmpImages.length>1&&!hasJSZip())return toast('ZIP 라이브러리를 불러오지 못했습니다(인터넷 필요). 이미지를 1장씩 압축해 주세요.',4000);
+  const q=+$('#cmpQuality').value,maxW=+$('#cmpMaxW').value||0,mime=$('#cmpFormat').value;
+  const ext=mime==='image/webp'?'webp':'jpg';
+  const zip=hasJSZip()?new JSZip():null;let rows='';
+  for(const f of cmpImages){
+    const out=await compressOne(f.dataUrl,q,maxW,mime);
+    const blob=dataURLtoBlob(out);
+    const base=f.name.replace(/\.[^.]+$/,'');
+    if(zip)zip.file(`${base}-compressed.${ext}`,blob);
+    const pct=f.size?Math.max(0,(100-blob.size/f.size*100)).toFixed(0):'—';
+    rows+=`<tr><td>${base}.${ext}</td><td>${fmtSize(f.size)}</td><td>${fmtSize(blob.size)}</td><td class="ok">-${pct}%</td></tr>`;
+  }
+  if(cmpImages.length===1){
+    const f=cmpImages[0];const out=await compressOne(f.dataUrl,q,maxW,mime);
+    download(dataURLtoBlob(out),`${f.name.replace(/\.[^.]+$/,'')}-compressed.${ext}`);
+  }else{
+    const content=await zip.generateAsync({type:'blob'});download(content,`compressed-${Date.now()}.zip`);
+  }
+  $('#cmpResult').innerHTML=`<span class="ok">완료 (${cmpImages.length>1?'ZIP으로 ':''}다운로드됨)</span><table><tr><th>파일</th><th>원본</th><th>압축</th><th>절감</th></tr>${rows}</table>`;
+});
+$('#zipPick').addEventListener('click',()=>{const inp=document.createElement('input');inp.type='file';inp.multiple=true;inp.onchange=async()=>{for(const f of inp.files){zipItems.push({name:f.name,file:f,size:f.size});}renderZipList();};inp.click();});
+function renderZipList(){const ul=$('#zipList');ul.innerHTML='';zipItems.forEach((f,i)=>{const li=document.createElement('li');li.innerHTML=`<span>📄 ${f.name}</span><span class="meta">${fmtSize(f.size)} <button data-i="${i}">✕</button></span>`;ul.appendChild(li);});ul.querySelectorAll('button').forEach(b=>b.onclick=()=>{zipItems.splice(+b.dataset.i,1);renderZipList();});}
+$('#zipRun').addEventListener('click',async()=>{if(!zipItems.length)return toast('파일을 선택하세요.');if(!hasJSZip())return toast('ZIP 라이브러리를 불러오지 못했습니다(인터넷 필요).',4000);const zip=new JSZip();for(const it of zipItems)zip.file(it.name,it.file);const content=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:9}});download(content,`archive-${Date.now()}.zip`);$('#zipResult').innerHTML=`<span class="ok">ZIP 생성 완료 (${fmtSize(content.size)})</span>`;});
+
+/* ===== 압축 풀기 ===== */
+let unzipObj=null;
+$('#unzipPick').addEventListener('click',()=>{
+  const inp=document.createElement('input');inp.type='file';inp.accept='.zip,application/zip';
+  inp.onchange=async()=>{
+    if(!inp.files[0])return;
+    if(!hasJSZip())return toast('ZIP 라이브러리를 불러오지 못했습니다(인터넷 필요).',4000);
+    $('#unzipResult').innerHTML='<span class="hint">여는 중...</span>';
+    try{
+      unzipObj=await JSZip.loadAsync(inp.files[0]);
+      const entries=Object.values(unzipObj.files).filter(f=>!f.dir);
+      const ul=$('#unzipList');ul.innerHTML='';
+      entries.forEach((f)=>{const li=document.createElement('li');li.innerHTML=`<span>📄 ${f.name.replace(/</g,'&lt;')}</span><span class="meta"><button data-name="${encodeURIComponent(f.name)}">내려받기</button></span>`;ul.appendChild(li);});
+      ul.querySelectorAll('button').forEach(b=>b.onclick=async()=>{const name=decodeURIComponent(b.dataset.name);const blob=await unzipObj.files[name].async('blob');download(blob,name.split('/').pop());});
+      $('#unzipAll').classList.remove('hidden');
+      $('#unzipResult').innerHTML=`<span class="ok">${entries.length}개 파일을 찾았습니다.</span>`;
+    }catch(e){$('#unzipResult').innerHTML=`<span class="err">열기 실패: 올바른 ZIP 파일인지 확인하세요.</span>`;}
+  };
+  inp.click();
+});
+$('#unzipAll').addEventListener('click',async()=>{
+  if(!unzipObj)return;
+  const entries=Object.values(unzipObj.files).filter(f=>!f.dir);
+  for(const f of entries){const blob=await f.async('blob');download(blob,f.name.split('/').pop());await new Promise(r=>setTimeout(r,300));}
+  toast(entries.length+'개 파일 내려받기 시작');
+});
+
+/* ================= PDF ================= */
+let pdfImages=[];
+$('#pdfPick').addEventListener('click',()=>{const inp=document.createElement('input');inp.type='file';inp.accept='image/*';inp.multiple=true;inp.onchange=async()=>{for(const f of inp.files){const d=await readFile(f);pdfImages.push({name:f.name,dataUrl:d});}renderPdfList();};inp.click();});
+$('#pdfClear').addEventListener('click',()=>{pdfImages=[];renderPdfList();});
+function renderPdfList(){const ul=$('#pdfList');ul.innerHTML='';pdfImages.forEach((f,i)=>{const li=document.createElement('li');li.innerHTML=`<span>${i+1}. 🖼️ ${f.name}</span><span class="meta"><button data-a="up" data-i="${i}">▲</button><button data-a="dn" data-i="${i}">▼</button><button data-a="del" data-i="${i}">✕</button></span>`;ul.appendChild(li);});ul.querySelectorAll('button').forEach(b=>b.onclick=()=>{const i=+b.dataset.i;if(b.dataset.a==='del')pdfImages.splice(i,1);else if(b.dataset.a==='up'&&i>0)[pdfImages[i-1],pdfImages[i]]=[pdfImages[i],pdfImages[i-1]];else if(b.dataset.a==='dn'&&i<pdfImages.length-1)[pdfImages[i+1],pdfImages[i]]=[pdfImages[i],pdfImages[i+1]];renderPdfList();});}
+function loadImg(src){return new Promise(res=>{const i=new Image();i.onload=()=>res(i);i.src=src;});}
+$('#pdfRun').addEventListener('click',async()=>{
+  if(!pdfImages.length)return toast('이미지를 추가하세요.');
+  const jsPDF=getJsPDF();
+  if(!jsPDF)return toast('PDF 라이브러리를 불러오지 못했습니다. 인터넷 연결 후 새로고침해 주세요.',4000);
+  const size=$('#pdfSize').value;let pdf=null;
+  for(let idx=0;idx<pdfImages.length;idx++){
+    const img=await loadImg(pdfImages[idx].dataUrl);
+    const isJpg=/jpe?g/i.test(pdfImages[idx].name)||pdfImages[idx].dataUrl.startsWith('data:image/jpeg');
+    let fmt=isJpg?'JPEG':'PNG';
+    if(size==='fit'){
+      const orient=img.width>=img.height?'l':'p';
+      const opt={orientation:orient,unit:'px',format:[img.width,img.height]};
+      if(!pdf)pdf=new jsPDF(opt);else pdf.addPage([img.width,img.height],orient);
+      pdf.addImage(pdfImages[idx].dataUrl,fmt,0,0,img.width,img.height);
+    }else{
+      const format=size;const orient=img.width>=img.height?'l':'p';
+      if(!pdf)pdf=new jsPDF({orientation:orient,unit:'pt',format});else pdf.addPage(format,orient);
+      const pw=pdf.internal.pageSize.getWidth(),ph=pdf.internal.pageSize.getHeight();
+      const r=Math.min(pw/img.width,ph/img.height);const w=img.width*r,h=img.height*r;
+      pdf.addImage(pdfImages[idx].dataUrl,fmt,(pw-w)/2,(ph-h)/2,w,h);
+    }
+  }
+  pdf.save(`document-${Date.now()}.pdf`);
+  $('#pdfResult').innerHTML=`<span class="ok">PDF 생성 완료 (${pdfImages.length}페이지)</span>`;
+});
+
+/* ===== PDF 병합 ===== */
+let mergeFiles=[];
+$('#mergePick').addEventListener('click',()=>{
+  const inp=document.createElement('input');inp.type='file';inp.accept='application/pdf,.pdf';inp.multiple=true;
+  inp.onchange=async()=>{for(const f of inp.files){mergeFiles.push({name:f.name,file:f,size:f.size});}renderMergeList();};
+  inp.click();
+});
+$('#mergeClear').addEventListener('click',()=>{mergeFiles=[];renderMergeList();});
+function renderMergeList(){const ul=$('#mergeList');ul.innerHTML='';mergeFiles.forEach((f,i)=>{const li=document.createElement('li');li.innerHTML=`<span>${i+1}. 📄 ${f.name}</span><span class="meta">${fmtSize(f.size)} <button data-a="up" data-i="${i}">▲</button><button data-a="dn" data-i="${i}">▼</button><button data-a="del" data-i="${i}">✕</button></span>`;ul.appendChild(li);});ul.querySelectorAll('button').forEach(b=>b.onclick=()=>{const i=+b.dataset.i;if(b.dataset.a==='del')mergeFiles.splice(i,1);else if(b.dataset.a==='up'&&i>0)[mergeFiles[i-1],mergeFiles[i]]=[mergeFiles[i],mergeFiles[i-1]];else if(b.dataset.a==='dn'&&i<mergeFiles.length-1)[mergeFiles[i+1],mergeFiles[i]]=[mergeFiles[i],mergeFiles[i+1]];renderMergeList();});}
+$('#mergeRun').addEventListener('click',async()=>{
+  if(mergeFiles.length<2)return toast('PDF를 2개 이상 선택하세요.');
+  if(!window.PDFLib)return toast('PDF 병합 라이브러리를 불러오지 못했습니다(인터넷 필요).',4000);
+  try{
+    toast('병합 중...');
+    const out=await PDFLib.PDFDocument.create();
+    let total=0;
+    for(const f of mergeFiles){
+      const buf=await f.file.arrayBuffer();
+      const src=await PDFLib.PDFDocument.load(buf,{ignoreEncryption:true});
+      const pages=await out.copyPages(src,src.getPageIndices());
+      pages.forEach(p=>out.addPage(p));
+      total+=src.getPageCount();
+    }
+    const bytes=await out.save();
+    download(new Blob([bytes],{type:'application/pdf'}),`merged-${Date.now()}.pdf`);
+    $('#mergeResult').innerHTML=`<span class="ok">병합 완료 (${mergeFiles.length}개 파일, ${total}페이지)</span>`;
+  }catch(e){$('#mergeResult').innerHTML=`<span class="err">병합 실패: ${e.message}</span>`;}
+});
+
+/* ================= 문서 변환 (CloudConvert) ================= */
+const CC_BASE='https://api.cloudconvert.com/v2';
+let ccFile=null;
+/* ---- 설정: 키 초기화 & 저장 ---- */
+function refreshKeyStatus(){
+  $('#ccKeySaved').textContent=store.get('ccKey','')?'✅ 저장됨':'';
+  $('#ocrKeySaved').textContent=store.get('ocrKey','')?'✅ 저장됨':'';
+  const cs=$('#ccKeyStatus');if(cs)cs.innerHTML=store.get('ccKey','')?' <span style="color:var(--green)">(API 키 등록됨 ✅)</span>':' <span style="color:var(--red)">(아직 키 미등록)</span>';
+}
+$('#ccKey').value=store.get('ccKey','')||'';
+$('#ccKeySave').addEventListener('click',()=>{store.set('ccKey',$('#ccKey').value.trim());refreshKeyStatus();toast('문서변환 API 키 저장됨');});
+/* OCR 설정 */
+$('#ocrKey').value=store.get('ocrKey','')||'';
+$('#ocrMode').value=store.get('ocrMode','free');
+function toggleOcrKeyBox(){$('#ocrKeyBox').style.display=$('#ocrMode').value==='api'?'block':'none';}
+$('#ocrMode').addEventListener('change',()=>{store.set('ocrMode',$('#ocrMode').value);toggleOcrKeyBox();toast('인식 방식 저장됨');});
+$('#ocrKeySave').addEventListener('click',()=>{store.set('ocrKey',$('#ocrKey').value.trim());refreshKeyStatus();toast('이미지 분석 API 키 저장됨');});
+toggleOcrKeyBox();refreshKeyStatus();
+/* OCR.space API 인식 */
+async function ocrSpaceRecognize(file){
+  const key=store.get('ocrKey','');
+  if(!key)throw new Error('설정 탭에서 이미지 분석 API 키를 먼저 등록하세요.');
+  const fd=new FormData();
+  fd.append('file',file);fd.append('language','kor');fd.append('isOverlayRequired','false');fd.append('scale','true');fd.append('detectOrientation','true');
+  const res=await fetch('https://api.ocr.space/parse/image',{method:'POST',headers:{apikey:key},body:fd});
+  const data=await res.json();
+  if(data.IsErroredOnProcessing)throw new Error((data.ErrorMessage&&data.ErrorMessage[0])||'OCR API 오류');
+  return (data.ParsedResults&&data.ParsedResults[0]&&data.ParsedResults[0].ParsedText)||'';
+}
+$('#ccPick').addEventListener('click',()=>{
+  const inp=document.createElement('input');inp.type='file';
+  inp.accept='.hwp,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.pdf,.txt,.rtf,.odt,.jpg,.png';
+  inp.onchange=()=>{if(inp.files[0]){ccFile=inp.files[0];$('#ccFileName').textContent=ccFile.name+' ('+fmtSize(ccFile.size)+')';}};
+  inp.click();
+});
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+$('#ccRun').addEventListener('click',async()=>{
+  const key=$('#ccKey').value.trim()||store.get('ccKey','');
+  const box=$('#ccResult');
+  if(!key)return box.innerHTML='<span class="err">먼저 API 키를 입력·저장하세요.</span>';
+  if(!ccFile)return box.innerHTML='<span class="err">변환할 파일을 선택하세요.</span>';
+  const outFmt=$('#ccOut').value;
+  const inExt=(ccFile.name.split('.').pop()||'').toLowerCase();
+  if(inExt===outFmt)return box.innerHTML='<span class="err">입력과 출력 형식이 같습니다.</span>';
+  const auth={'Authorization':'Bearer '+key};
+  try{
+    box.innerHTML='<span class="hint">① 변환 작업 생성 중...</span>';
+    const jobRes=await fetch(CC_BASE+'/jobs',{method:'POST',headers:{...auth,'Content-Type':'application/json'},
+      body:JSON.stringify({tasks:{
+        'import-1':{operation:'import/upload'},
+        'convert-1':{operation:'convert',input:'import-1',input_format:inExt,output_format:outFmt},
+        'export-1':{operation:'export/url',input:'convert-1',inline:false,archive_multiple_files:false}
+      }})});
+    if(!jobRes.ok){const t=await jobRes.text();throw new Error('작업 생성 실패('+jobRes.status+'): '+t.slice(0,200));}
+    let job=(await jobRes.json()).data;
+    // 업로드 폼 찾기
+    const up=job.tasks.find(t=>t.name==='import-1');
+    const form=up.result.form;
+    box.innerHTML='<span class="hint">② 파일 업로드 중...</span>';
+    const fd=new FormData();
+    Object.entries(form.parameters).forEach(([k,v])=>fd.append(k,v));
+    fd.append('file',ccFile);
+    const upRes=await fetch(form.url,{method:'POST',body:fd});
+    if(!(upRes.status===201||upRes.status===200||upRes.status===204))throw new Error('업로드 실패('+upRes.status+')');
+    // 폴링
+    box.innerHTML='<span class="hint">③ 변환 처리 중... (파일 크기에 따라 수초~수분)</span>';
+    let tries=0,exportTask=null;
+    while(tries++<150){
+      await sleep(2000);
+      const st=await fetch(CC_BASE+'/jobs/'+job.id,{headers:auth});
+      const jd=(await st.json()).data;
+      if(jd.status==='error'){
+        const failed=jd.tasks.find(t=>t.status==='error');
+        throw new Error('변환 실패: '+(failed?.message||'지원되지 않는 변환 조합일 수 있습니다.'));
+      }
+      if(jd.status==='finished'){exportTask=jd.tasks.find(t=>t.name==='export-1');break;}
+    }
+    if(!exportTask)throw new Error('시간 초과. 잠시 후 다시 시도하세요.');
+    const file=exportTask.result.files[0];
+    box.innerHTML=`<span class="ok">✅ 변환 완료! 다운로드가 시작됩니다.</span><br><a href="${file.url}" target="_blank" style="color:var(--accent)">직접 다운로드 링크</a>`;
+    const a=document.createElement('a');a.href=file.url;a.download=file.filename||('converted.'+outFmt);document.body.appendChild(a);a.click();a.remove();
+  }catch(e){
+    let msg=e.message||String(e);
+    if(/Failed to fetch|NetworkError/i.test(msg))msg='네트워크 오류입니다. 인터넷 연결 또는 API 키 권한(task)을 확인하세요. (브라우저 CORS 차단일 수도 있어요)';
+    if(/401|Unauthorized/i.test(msg))msg='API 키가 올바르지 않습니다. 키를 다시 확인하세요.';
+    box.innerHTML='<span class="err">'+msg+'</span>';
+  }
+});
+
+/* ================= 일정표 + 일기 ================= */
+let calDate=new Date();
+const DOW=['일','월','화','수','목','금','토'];
+const MON=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+function keyOf(y,m,d){return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;}
+function getEvents(){return store.get('events',{});}
+function getDiaries(){return store.get('diaries',{});}
+function renderCal(){
+  const y=calDate.getFullYear(),m=calDate.getMonth();
+  $('#calTitle').textContent=`${y}년 ${MON[m]}`;
+  const dow=$('#calDow');dow.innerHTML='';DOW.forEach((d,i)=>{const c=document.createElement('div');c.className='cal-dow';c.textContent=d;if(i===0)c.style.color='var(--red)';if(i===6)c.style.color='#7ab8ff';dow.appendChild(c);});
+  const grid=$('#calGrid');grid.innerHTML='';
+  const first=new Date(y,m,1).getDay();
+  const days=new Date(y,m+1,0).getDate();
+  const events=getEvents(),diaries=getDiaries();
+  const today=new Date();const todayKey=keyOf(today.getFullYear(),today.getMonth(),today.getDate());
+  for(let i=0;i<first;i++){const c=document.createElement('div');c.className='cal-cell empty';grid.appendChild(c);}
+  for(let d=1;d<=days;d++){
+    const key=keyOf(y,m,d);const dowIdx=new Date(y,m,d).getDay();
+    const c=document.createElement('div');c.className='cal-cell'+(dowIdx===0?' sun':'')+(dowIdx===6?' sat':'')+(key===todayKey?' today':'');
+    let html=`<div class="num">${d}</div>`;
+    const evs=events[key]||[];
+    evs.slice(0,2).forEach(e=>html+=`<div class="ev">${e.time?e.time+' ':''}${e.title}</div>`);
+    if(evs.length>2)html+=`<div class="hint" style="font-size:10px">+${evs.length-2}</div>`;
+    if(diaries[key])html+=`<div class="diary-mark">📔</div>`;
+    c.innerHTML=html;
+    c.onclick=()=>openDay(key);
+    grid.appendChild(c);
+  }
+}
+$('#calPrev').onclick=()=>{calDate.setMonth(calDate.getMonth()-1);renderCal();};
+$('#calNext').onclick=()=>{calDate.setMonth(calDate.getMonth()+1);renderCal();};
+
+function addEvent(key,time,title){const ev=getEvents();(ev[key]=ev[key]||[]).push({time:time||'',title});ev[key].sort((a,b)=>(a.time||'99').localeCompare(b.time||'99'));store.set('events',ev);}
+
+/* ---- 이미지 OCR → 일정 후보 ---- */
+function parseSchedule(text){
+  const year=calDate.getFullYear(),month=calDate.getMonth()+1;
+  const lines=text.split(/\n+/).map(l=>l.trim()).filter(Boolean);
+  const out=[];
+  for(const line of lines){
+    let y=year,m=null,d=null,time='',mt;
+    if(mt=line.match(/(20\d{2})[.\-\/년\s]+(\d{1,2})[.\-\/월\s]+(\d{1,2})/)){y=+mt[1];m=+mt[2];d=+mt[3];}
+    else if(mt=line.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/)){m=+mt[1];d=+mt[2];}
+    else if(mt=line.match(/(\d{1,2})[.\/](\d{1,2})/)){m=+mt[1];d=+mt[2];}
+    else if(mt=line.match(/(\d{1,2})\s*일/)){m=month;d=+mt[1];}
+    if(!d)continue; if(!m)m=month;
+    if(m<1||m>12||d<1||d>31)continue;
+    let tm;
+    if(tm=line.match(/(오전|오후|AM|PM)?\s*(\d{1,2})\s*[:시]\s*(\d{2})?/i)){
+      let h=+tm[2],mn=tm[3]?+tm[3]:0;
+      if(/오후|PM/i.test(tm[1]||'')&&h<12)h+=12;
+      if(/오전|AM/i.test(tm[1]||'')&&h===12)h=0;
+      if(h<=23&&mn<=59)time=String(h).padStart(2,'0')+':'+String(mn).padStart(2,'0');
+    }
+    let title=line
+      .replace(/(20\d{2})[.\-\/년\s]+\d{1,2}[.\-\/월\s]+\d{1,2}\s*일?/,'')
+      .replace(/\d{1,2}\s*월\s*\d{1,2}\s*일/,'')
+      .replace(/\d{1,2}[.\/]\d{1,2}/,'')
+      .replace(/\d{1,2}\s*일/,'')
+      .replace(/(오전|오후|AM|PM)\s*/ig,'')
+      .replace(/\d{1,2}\s*시\s*(\d{1,2}\s*분)?/,'')
+      .replace(/\d{1,2}:\d{2}/,'')
+      .replace(/[\-–~|:]+/g,' ').replace(/\s+/g,' ').trim();
+    if(!title)title='(제목 없음)';
+    out.push({date:`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`,time,title});
+  }
+  return out;
+}
+$('#ocrPick').addEventListener('click',()=>{
+  const inp=document.createElement('input');inp.type='file';inp.accept='image/*';
+  inp.onchange=async()=>{
+    if(!inp.files[0])return;
+    const useApi=store.get('ocrMode','free')==='api'&&store.get('ocrKey','');
+    $('#ocrCandidates').innerHTML='';
+    try{
+      let text;
+      if(useApi){
+        $('#ocrStatus').textContent='API로 글자 인식 중...';
+        text=await ocrSpaceRecognize(inp.files[0]);
+      }else{
+        if(typeof Tesseract==='undefined'){$('#ocrStatus').textContent='무료 OCR 라이브러리 로드 실패(인터넷 필요). 또는 설정 탭에서 API 키를 등록하세요.';return;}
+        $('#ocrStatus').textContent='글자 인식 준비 중... (무료 인식, 처음엔 한글 데이터 다운로드로 시간이 걸려요)';
+        const {data}=await Tesseract.recognize(inp.files[0],'kor+eng',{logger:m=>{if(m.status==='recognizing text')$('#ocrStatus').textContent='인식 중... '+Math.round(m.progress*100)+'%';}});
+        text=data.text;
+      }
+      const cands=parseSchedule(text);
+      $('#ocrStatus').textContent=`인식 완료. 일정 후보 ${cands.length}개.`+(useApi?'':' (더 정확히 하려면 설정에서 API 사용)');
+      renderCandidates(cands,text);
+    }catch(e){$('#ocrStatus').textContent='실패: '+(e.message||e);}
+  };
+  inp.click();
+});
+function renderCandidates(cands,rawText){
+  const box=$('#ocrCandidates');
+  if(!cands.length){box.innerHTML=`<p class="hint">날짜가 있는 줄을 찾지 못했어요. 인식된 텍스트를 확인하고 직접 추가하세요:</p><textarea readonly style="min-height:100px">${rawText.replace(/</g,'&lt;')}</textarea>`;return;}
+  box.innerHTML='<p class="hint" style="margin-top:8px">추가할 일정을 선택하고 내용을 수정하세요.</p>'+
+    cands.map((c,i)=>`<div class="ev-item"><label style="display:flex;gap:6px;align-items:center;flex:1;flex-wrap:wrap">
+      <input type="checkbox" class="ocrChk" data-i="${i}" checked>
+      <input type="text" class="ocrDate" data-i="${i}" value="${c.date}" style="width:120px">
+      <input type="time" class="ocrTime" data-i="${i}" value="${c.time}" style="width:110px">
+      <input type="text" class="ocrTitle" data-i="${i}" value="${c.title.replace(/"/g,'&quot;')}" style="flex:1;min-width:120px"></label></div>`).join('')+
+    '<div class="row"><button id="ocrAdd" class="btn primary small">선택한 일정 추가</button></div>';
+  $('#ocrAdd').onclick=()=>{
+    let n=0;
+    box.querySelectorAll('.ocrChk').forEach(chk=>{
+      if(!chk.checked)return;const i=chk.dataset.i;
+      const date=box.querySelector(`.ocrDate[data-i="${i}"]`).value.trim();
+      const time=box.querySelector(`.ocrTime[data-i="${i}"]`).value;
+      const title=box.querySelector(`.ocrTitle[data-i="${i}"]`).value.trim()||'(제목 없음)';
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return;
+      addEvent(date,time,title);n++;
+    });
+    renderCal();toast(n+'개 일정이 추가되었습니다.');box.innerHTML='';$('#ocrStatus').textContent='';
+  };
+}
+
+/* ---- CSV 가져오기/내보내기 ---- */
+function parseCsvLine(line){const out=[];let cur='',q=false;for(let i=0;i<line.length;i++){const ch=line[i];if(q){if(ch==='"'){if(line[i+1]==='"'){cur+='"';i++;}else q=false;}else cur+=ch;}else{if(ch==='"')q=true;else if(ch===','){out.push(cur);cur='';}else cur+=ch;}}out.push(cur);return out;}
+$('#csvExport').addEventListener('click',()=>{
+  const ev=getEvents();const rows=[['날짜','시간','제목']];
+  Object.keys(ev).sort().forEach(k=>ev[k].forEach(e=>rows.push([k,e.time||'',e.title])));
+  if(rows.length===1)return toast('내보낼 일정이 없습니다.');
+  const csv='﻿'+rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+  download(new Blob([csv],{type:'text/csv'}),`schedule-${Date.now()}.csv`);
+  $('#ioResult').innerHTML=`<span class="ok">CSV 내보내기 완료 (${rows.length-1}건)</span>`;
+});
+$('#csvImport').addEventListener('click',()=>{
+  const inp=document.createElement('input');inp.type='file';inp.accept='.csv,text/csv';
+  inp.onchange=async()=>{
+    if(!inp.files[0])return;
+    const text=await inp.files[0].text();
+    const lines=text.replace(/^﻿/,'').split(/\r?\n/).filter(l=>l.trim());
+    let n=0;
+    lines.forEach((line,idx)=>{
+      const cols=parseCsvLine(line);
+      if(idx===0&&/날짜|date/i.test(cols[0]||''))return;
+      let date=(cols[0]||'').trim(),time=(cols[1]||'').trim(),title=(cols[2]||'(제목 없음)').trim();
+      const m=date.match(/(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/);
+      if(m)date=`${m[1]}-${String(+m[2]).padStart(2,'0')}-${String(+m[3]).padStart(2,'0')}`;
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return;
+      addEvent(date,time,title);n++;
+    });
+    renderCal();$('#ioResult').innerHTML=`<span class="ok">CSV 가져오기 완료 (${n}건 추가)</span>`;
+  };
+  inp.click();
+});
+
+/* ---- ICS 내보내기 (구글 캘린더 가져오기용) ---- */
+function icsEsc(s){return String(s).replace(/([,;\\])/g,'\\$1').replace(/\n/g,'\\n');}
+function nextDayKey(key){const nd=new Date(key);nd.setDate(nd.getDate()+1);return keyOf(nd.getFullYear(),nd.getMonth(),nd.getDate());}
+$('#icsExport').addEventListener('click',()=>{
+  const ev=getEvents();const keys=Object.keys(ev).sort();
+  if(!keys.length)return toast('내보낼 일정이 없습니다.');
+  let ics='BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//내일상도구//KO//\r\nCALSCALE:GREGORIAN\r\n';
+  keys.forEach(k=>ev[k].forEach((e,i)=>{
+    const d=k.replace(/-/g,'');
+    ics+='BEGIN:VEVENT\r\nUID:'+d+'-'+i+'-'+Date.now()+'@ilsang\r\n';
+    if(e.time){let [h,mn]=e.time.split(':').map(Number);const st=String(h).padStart(2,'0')+String(mn).padStart(2,'0')+'00';h=(h+1)%24;const et=String(h).padStart(2,'0')+String(mn).padStart(2,'0')+'00';ics+='DTSTART:'+d+'T'+st+'\r\nDTEND:'+d+'T'+et+'\r\n';}
+    else{ics+='DTSTART;VALUE=DATE:'+d+'\r\nDTEND;VALUE=DATE:'+nextDayKey(k).replace(/-/g,'')+'\r\n';}
+    ics+='SUMMARY:'+icsEsc(e.title)+'\r\nEND:VEVENT\r\n';
+  }));
+  ics+='END:VCALENDAR\r\n';
+  download(new Blob([ics],{type:'text/calendar'}),`schedule-${Date.now()}.ics`);
+  $('#ioResult').innerHTML='<span class="ok">ICS 내보내기 완료! 구글 캘린더 → 설정 → 가져오기에서 이 파일을 업로드하세요.</span>';
+});
+function gcalLink(key,e){
+  const d=key.replace(/-/g,'');let dates;
+  if(e.time){let [h,mn]=e.time.split(':').map(Number);const st=String(h).padStart(2,'0')+String(mn).padStart(2,'0')+'00';h=(h+1)%24;const et=String(h).padStart(2,'0')+String(mn).padStart(2,'0')+'00';dates=d+'T'+st+'/'+d+'T'+et;}
+  else{dates=d+'/'+nextDayKey(key).replace(/-/g,'');}
+  return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text='+encodeURIComponent(e.title)+'&dates='+dates;
+}
+
+function openDay(key){
+  const events=getEvents(),diaries=getDiaries();
+  const evs=events[key]||[];const diary=diaries[key]||{text:'',mood:''};
+  const moods=['😀','🙂','😐','😔','😢','😡','😴','🥰'];
+  const root=$('#modalRoot');
+  root.innerHTML=`<div class="modal-bg"><div class="modal">
+    <h3>${key} <span class="hint">(${DOW[new Date(key).getDay()]})</span></h3>
+    <div class="card" style="margin:8px 0">
+      <h3 style="font-size:14px">📅 일정</h3>
+      <div id="mEvList"></div>
+      <div class="row">
+        <input type="time" id="mEvTime" style="width:110px">
+        <input type="text" id="mEvTitle" placeholder="일정 내용" style="flex:1;min-width:120px">
+        <button id="mEvAdd" class="btn primary small">추가</button>
+      </div>
+    </div>
+    <div class="card" style="margin:8px 0">
+      <h3 style="font-size:14px">📔 일기</h3>
+      <div class="mood-row" id="mMood">${moods.map(x=>`<button class="mood${diary.mood===x?' sel':''}" data-m="${x}">${x}</button>`).join('')}</div>
+      <textarea id="mDiary" placeholder="오늘 하루는 어땠나요?">${diary.text||''}</textarea>
+      <div class="row"><button id="mDiarySave" class="btn primary small">일기 저장</button></div>
+    </div>
+    <div class="row" style="justify-content:flex-end"><button id="mClose" class="btn ghost small">닫기</button></div>
+  </div></div>`;
+  let selMood=diary.mood;
+  function renderEvs(){const box=$('#mEvList');const list=(getEvents()[key]||[]);box.innerHTML=list.length?list.map((e,i)=>`<div class="ev-item"><span>${e.time?'<b>'+e.time+'</b> ':''}${e.title}</span><span style="white-space:nowrap"><a href="${gcalLink(key,e)}" target="_blank" title="구글 캘린더에 추가" style="text-decoration:none;margin-right:10px">📅</a><button data-i="${i}" style="background:none;border:none;color:var(--red);cursor:pointer">삭제</button></span></div>`).join(''):'<p class="hint">일정 없음</p>';box.querySelectorAll('button').forEach(b=>b.onclick=()=>{const ev=getEvents();ev[key].splice(+b.dataset.i,1);if(!ev[key].length)delete ev[key];store.set('events',ev);renderEvs();renderCal();});}
+  renderEvs();
+  $('#mEvAdd').onclick=()=>{const title=$('#mEvTitle').value.trim();if(!title)return;const ev=getEvents();(ev[key]=ev[key]||[]).push({time:$('#mEvTime').value,title});ev[key].sort((a,b)=>(a.time||'99').localeCompare(b.time||'99'));store.set('events',ev);$('#mEvTitle').value='';$('#mEvTime').value='';renderEvs();renderCal();};
+  $('#mMood').querySelectorAll('.mood').forEach(b=>b.onclick=()=>{selMood=b.dataset.m;$('#mMood').querySelectorAll('.mood').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');});
+  $('#mDiarySave').onclick=()=>{const text=$('#mDiary').value;const di=getDiaries();if(text.trim()||selMood){di[key]={text,mood:selMood};}else{delete di[key];}store.set('diaries',di);renderCal();toast('일기 저장됨');};
+  $('#mClose').onclick=()=>root.innerHTML='';
+  root.querySelector('.modal-bg').onclick=(e)=>{if(e.target.classList.contains('modal-bg'))root.innerHTML='';};
+}
+
+/* ===== 메모(일기) ===== */
+const MEMO_EMOJIS=['😀','🥰','😌','🥳','😎','😴','😢','😡','🤒','🌿','☀️','🌧️','🍀','❤️','✨','☕','🍚','📚','💪','🎉'];
+let memoEmoji=MEMO_EMOJIS[0];
+function initMemoEmoji(){const box=$('#memoEmoji');box.innerHTML=MEMO_EMOJIS.map((e,i)=>`<button data-e="${e}" class="${i===0?'sel':''}">${e}</button>`).join('');box.querySelectorAll('button').forEach(b=>b.onclick=()=>{memoEmoji=b.dataset.e;box.querySelectorAll('button').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');});}
+function getMemos(){return store.get('memos',[]);}
+function todayKey(){const t=new Date();return keyOf(t.getFullYear(),t.getMonth(),t.getDate());}
+function addMemo(){
+  const t=$('#memoText').value.trim();if(!t)return toast('메모를 입력하세요.');
+  const date=$('#memoDate').value||todayKey();
+  const list=getMemos();list.unshift({id:Date.now(),ts:Date.now(),date,emoji:memoEmoji,text:t});
+  store.set('memos',list);$('#memoText').value='';renderMemos();toast('메모를 남겼어요 ✨');
+}
+function fmtTime(ts){const d=new Date(ts);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
+const DOWK=['일','월','화','수','목','금','토'];
+function fmtDateLabel(dstr){const d=new Date(dstr);const now=new Date();const tk=todayKey();const y=new Date(now);y.setDate(y.getDate()-1);const yk=keyOf(y.getFullYear(),y.getMonth(),y.getDate());let tag='';if(dstr===tk)tag=' · 오늘';else if(dstr===yk)tag=' · 어제';return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 (${DOWK[d.getDay()]})${tag}`;}
+// 메모 + 일정표 일기를 하나로 모아 날짜별로 표시
+function allEntries(){
+  const out=[];
+  getMemos().forEach(m=>out.push({date:m.date||new Date(m.ts).toISOString().slice(0,10),ts:m.ts||0,emoji:m.emoji||'📝',text:m.text||'',id:'m'+m.id,kind:'memo'}));
+  const di=getDiaries();Object.keys(di).forEach(k=>{const d=di[k];if((d.text&&d.text.trim())||d.mood)out.push({date:k,ts:new Date(k).getTime(),emoji:d.mood||'📔',text:d.text||'(기분 기록)',id:'d'+k,kind:'diary'});});
+  return out;
+}
+function renderMemos(){
+  const q=($('#diarySearch').value||'').trim().toLowerCase();
+  let list=allEntries().filter(e=>!q||e.text.toLowerCase().includes(q)||e.date.includes(q));
+  const board=$('#memoBoard');
+  if(!list.length){board.innerHTML='<div class="memo-empty">아직 기록이 없어요.<br>위에서 이모티콘과 한 줄을 남기거나, 일정표에서 일기를 써보세요 ✏️</div>';return;}
+  const groups={};list.forEach(e=>{(groups[e.date]=groups[e.date]||[]).push(e);});
+  const dates=Object.keys(groups).sort().reverse();
+  board.innerHTML=dates.map(d=>{
+    const notes=groups[d].sort((a,b)=>b.ts-a.ts).map(m=>`<div class="memo-note"><div class="emoji">${m.emoji}</div><div class="text">${m.text.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div><div class="when">${m.kind==='diary'?'일정표 일기':fmtTime(m.ts)}</div><button class="del" data-id="${m.id}" title="삭제">🗑</button></div>`).join('');
+    return `<div class="memo-daygroup"><div class="memo-date">${fmtDateLabel(d)}</div><div class="memo-board">${notes}</div></div>`;
+  }).join('');
+  board.querySelectorAll('.del').forEach(b=>b.onclick=()=>{
+    const id=b.dataset.id;
+    if(!confirm('이 기록을 삭제할까요?'))return;
+    if(id[0]==='m'){store.set('memos',getMemos().filter(x=>'m'+x.id!==id));}
+    else{const key=id.slice(1);const di=getDiaries();delete di[key];store.set('diaries',di);renderCal();}
+    renderMemos();
+  });
+}
+function renderDiaryList(){ if($('#memoDate')&&!$('#memoDate').value)$('#memoDate').value=todayKey(); renderMemos(); }
+$('#memoAdd').addEventListener('click',addMemo);
+$('#memoText').addEventListener('keydown',e=>{if(e.key==='Enter')addMemo();});
+$('#diarySearch').addEventListener('input',renderMemos);
+$('#memoDate').value=todayKey();
+initMemoEmoji();
+
+/* ===== 할일 + 알람 ===== */
+function getTodos(){return store.get('todos',[]);}
+function setTodos(a){store.set('todos',a);}
+$('#todoDate').value=todayKey();
+$('#todoDate').addEventListener('change',renderTodos);
+$('#todoAdd').addEventListener('click',addTodo);
+$('#todoText').addEventListener('keydown',e=>{if(e.key==='Enter')addTodo();});
+function addTodo(){
+  const text=$('#todoText').value.trim();if(!text)return toast('할 일을 입력하세요.');
+  const date=$('#todoDate').value||todayKey();const time=$('#todoTime').value||'';
+  const list=getTodos();list.push({id:Date.now(),date,text,time,done:false,notified:false});
+  setTodos(list);$('#todoText').value='';$('#todoTime').value='';renderTodos();toast('할 일 추가됨');
+}
+function renderTodos(){
+  const date=$('#todoDate').value||todayKey();
+  const list=getTodos().filter(t=>t.date===date).sort((a,b)=>(a.time||'99:99').localeCompare(b.time||'99:99')||a.id-b.id);
+  const ul=$('#todoList');ul.innerHTML='';
+  if(!list.length){ul.innerHTML='<li style="justify-content:center;color:var(--muted)">이 날짜의 할 일이 없어요.</li>';$('#todoProgress').textContent='';return;}
+  const done=list.filter(t=>t.done).length;
+  $('#todoProgress').innerHTML=`완료 <b style="color:var(--green)">${done}</b> / ${list.length}`;
+  list.forEach(t=>{
+    const li=document.createElement('li');li.className=t.done?'todo-done':'';
+    li.innerHTML=`<span style="display:flex;gap:10px;align-items:center;flex:1">
+      <input type="checkbox" ${t.done?'checked':''} data-id="${t.id}" class="tchk" style="width:18px;height:18px">
+      <span class="tt">${t.time?'<b style="color:var(--accent2)">'+t.time+'</b> ':''}${t.text.replace(/</g,'&lt;')}</span></span>
+      <button data-del="${t.id}" title="삭제">🗑</button>`;
+    ul.appendChild(li);
+  });
+  ul.querySelectorAll('.tchk').forEach(c=>c.onchange=()=>{const a=getTodos();const it=a.find(x=>String(x.id)===c.dataset.id);if(it){it.done=c.checked;setTodos(a);renderTodos();}});
+  ul.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{setTodos(getTodos().filter(x=>String(x.id)!==b.dataset.del));renderTodos();});
+}
+function updateNotifyStatus(){const s=$('#notifyStatus');if(!('Notification'in window)){s.textContent='이 브라우저는 알림 미지원';return;}s.textContent=Notification.permission==='granted'?'알림 켜짐 ✅':(Notification.permission==='denied'?'차단됨(브라우저 설정에서 허용)':'꺼짐');}
+$('#notifyEnable').addEventListener('click',async()=>{if(!('Notification'in window))return toast('이 브라우저는 알림을 지원하지 않습니다.');try{await Notification.requestPermission();updateNotifyStatus();if(Notification.permission==='granted')toast('알림이 켜졌어요 🔔');}catch(e){}});
+function beep(){try{const ac=new (window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.connect(g);g.connect(ac.destination);o.type='sine';o.frequency.value=880;g.gain.setValueAtTime(0.001,ac.currentTime);g.gain.exponentialRampToValueAtTime(0.3,ac.currentTime+0.05);g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.6);o.start();o.stop(ac.currentTime+0.6);}catch(e){}}
+function fireAlarm(text,time){toast('⏰ '+time+'  '+text,6000);beep();try{if(('Notification'in window)&&Notification.permission==='granted')new Notification('⏰ 할 일 알림',{body:time+'  '+text});}catch(e){}}
+function checkAlarms(){
+  const now=new Date();const today=keyOf(now.getFullYear(),now.getMonth(),now.getDate());
+  const hm=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  const list=getTodos();let changed=false;
+  list.forEach(t=>{if(t.date===today&&t.time&&!t.done&&!t.notified&&t.time<=hm){t.notified=true;changed=true;fireAlarm(t.text,t.time);}});
+  if(changed)setTodos(list);
+}
+updateNotifyStatus();renderTodos();
+setInterval(checkAlarms,20000);setTimeout(checkAlarms,1500);
+
+renderCal();
+</script>
+</body>
+</html>
