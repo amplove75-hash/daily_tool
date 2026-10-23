@@ -23,6 +23,8 @@ header h1{font-size:22px;letter-spacing:-.2px;font-weight:700}
 header p{color:var(--muted);font-size:13px;margin-top:4px}
 .tabs{display:flex;gap:8px;padding:14px 24px 16px;flex-wrap:wrap;position:sticky;top:0;z-index:50;background:rgba(245,241,234,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--border)}
 .tab{background:#fff;color:var(--muted);border:1px solid var(--border);padding:9px 16px;font-size:14px;cursor:pointer;border-radius:12px;font-weight:600;transition:.15s;box-shadow:var(--shadow-sm)}
+.tab-eye{text-decoration:none;display:inline-flex;align-items:center;background:#1B2B44;color:#F4C56A;border-color:#1B2B44}
+.tab-eye:hover{color:#FFD98C;border-color:#1B2B44}
 .tab:hover{color:var(--accent2);border-color:var(--accent);transform:translateY(-1px)}
 .tab.active{color:#fff;background:var(--accent);border-color:var(--accent);box-shadow:0 4px 12px rgba(232,137,107,.4)}
 main{padding:22px 24px;max-width:1000px;margin:0 auto}
@@ -120,6 +122,7 @@ code{background:#F0EADD;padding:1px 6px;border-radius:5px;font-size:12px}
   <button class="tab" data-tab="calendar">📅 일정표</button>
   <button class="tab" data-tab="todo">✅ 할일</button>
   <button class="tab" data-tab="diary">📔 일기·메모</button>
+  <a class="tab tab-eye" href="eye_walk/index.html" title="피로하고 건조한 눈을 위한 3분 눈운동 게임">👀 눈산책</a>
   <button class="tab" data-tab="settings">⚙️ 설정</button>
 </nav>
 
@@ -426,8 +429,8 @@ function download(blob,name){const a=document.createElement('a');a.href=URL.crea
 function dataURLtoBlob(d){const [h,b]=d.split(',');const mime=h.match(/:(.*?);/)[1];const bin=atob(b);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new Blob([u],{type:mime});}
 
 // 탭
-document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
-  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+document.querySelectorAll('.tab[data-tab]').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab[data-tab]').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
   t.classList.add('active');$('#tab-'+t.dataset.tab).classList.add('active');
   if(t.dataset.tab==='diary') renderDiaryList();

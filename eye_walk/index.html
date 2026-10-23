@@ -32,6 +32,8 @@ body{background:var(--night);color:var(--mist);font-family:var(--f-body);font-si
 .hero canvas{width:100%;height:150px;display:block;border-radius:18px;background:var(--dusk)}
 h1{font-family:var(--f-display);font-weight:700;font-size:clamp(2rem,7vw,2.75rem);line-height:1.15;margin:8px 0 0;text-wrap:balance;letter-spacing:-.01em}
 h1 em{font-style:normal;color:var(--firefly)}
+.back{color:var(--mist-dim);text-decoration:none;font-size:.9rem;align-self:flex-start}
+.back:hover{color:var(--firefly)}
 .lede{color:var(--mist-dim);margin:0;max-width:34em}
 .stats{display:flex;gap:18px;flex-wrap:wrap;font-size:.9rem;color:var(--mist-dim)}
 .stats b{color:var(--mist);font-variant-numeric:tabular-nums;font-weight:400;font-family:var(--f-display);font-size:1.15rem;margin-right:4px}
@@ -83,6 +85,7 @@ h1 em{font-style:normal;color:var(--firefly)}
 <body>
 
 <main class="wrap" id="home">
+  <a class="back" href="../index.html">← 내 일상 도구</a>
   <header class="hero">
     <canvas id="heroSky" aria-hidden="true"></canvas>
     <h1>화면 밖으로, <em>반딧불</em>을 따라<br>눈산책</h1>
